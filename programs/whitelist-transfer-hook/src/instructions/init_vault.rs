@@ -12,6 +12,15 @@ pub struct InitializeVault<'info> {
     pub admin: Signer<'info>,
 
     #[account(
+        init,
+        payer = admin,
+        space = Vault::DISCRIMINATOR.len() + Vault::INIT_SPACE,
+        seeds = [b"vault"],
+        bump
+    )]
+    pub vault: Account<'info, Vault>,
+
+    #[account(
         mint::token_program = token_program,
     )]
     pub mint: InterfaceAccount<'info, Mint>,
@@ -25,15 +34,6 @@ pub struct InitializeVault<'info> {
     )]
     pub vault_token_account: InterfaceAccount<'info, TokenAccount>,
 
-    #[account(
-        init,
-        payer = admin,
-        space = 8 + 1,
-        seeds = [b"vault"],
-        bump
-    )]
-    pub vault: Account<'info, Vault>,
-
     pub associated_token_program: Program<'info, AssociatedToken>,
     pub token_program: Interface<'info, TokenInterface>,
     pub system_program: Program<'info, System>,
@@ -41,13 +41,11 @@ pub struct InitializeVault<'info> {
 
 impl<'info> InitializeVault<'info> {
     pub fn initialize_vault(&mut self, bumps: InitializeVaultBumps) -> Result<()> {
-        // Initialize the whitelist with an empty address vector
         self.vault.set_inner(Vault {
             admin: self.admin.key(),
-            whilelisted: vec![],
-            bump: bumps.vault,
             mint: self.mint.key(),
             vault_token_account: self.vault_token_account.key(),
+            bump: bumps.vault,
         });
 
         Ok(())

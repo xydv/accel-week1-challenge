@@ -5,7 +5,7 @@ use anchor_spl::{
     token_interface::{self, Mint, TokenAccount, TokenInterface},
 };
 
-use crate::state::{Vault, Whitelist};
+use crate::state::Vault;
 
 #[derive(Accounts)]
 pub struct Deposit<'info> {

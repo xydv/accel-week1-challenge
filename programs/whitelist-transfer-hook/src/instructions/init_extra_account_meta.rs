@@ -1,9 +1,6 @@
 use anchor_lang::prelude::*;
 use anchor_spl::token_interface::Mint;
-use spl_tlv_account_resolution::{
-    account::ExtraAccountMeta, 
-    state::ExtraAccountMetaList
-};
+use spl_tlv_account_resolution::{account::ExtraAccountMeta, state::ExtraAccountMetaList};
 
 use crate::ID;
 
@@ -29,16 +26,23 @@ pub struct InitializeExtraAccountMetaList<'info> {
 
 impl<'info> InitializeExtraAccountMetaList<'info> {
     pub fn extra_account_metas() -> Result<Vec<ExtraAccountMeta>> {
-        // Derive the whitelist PDA using our program ID
-        let (whitelist_pda, _bump) = Pubkey::find_program_address(
-            &[b"whitelist"],
-            &ID
-        );
-        
-        Ok(
-            vec![
-                ExtraAccountMeta::new_with_pubkey(&whitelist_pda.to_bytes().into(), false, false).unwrap(),
-            ]
+        let (vault_pda, _bump) = Pubkey::find_program_address(&[b"vault"], &ID);
+        let vault_meta =
+            ExtraAccountMeta::new_with_pubkey(&whitelist_pda.to_bytes().into(), false, false)
+                .unwrap();
+
+        let user_meta = ExtraAccountMeta::new_with_seeds(
+            &[
+                Seed::Literal {
+                    bytes: b"user".to_vec(),
+                },
+                Seed::AccountKey { index: 3 },
+            ],
+            false,
+            false,
         )
+        .unwrap();
+
+        Ok(vec![vault_meta, user_meta])
     }
 }

@@ -1,11 +1,14 @@
 use anchor_lang::prelude::*;
+// use anchor_lang::solana_program::hash::hash;
 use anchor_spl::{
-    associated_token::AssociatedToken,
+    associated_token::{
+        spl_associated_token_account::solana_program::keccak::hash, AssociatedToken,
+    },
     token_2022::TransferChecked,
     token_interface::{self, Mint, TokenAccount, TokenInterface},
 };
 
-use crate::state::Vault;
+use crate::state::{User, Vault};
 
 #[derive(Accounts)]
 pub struct Deposit<'info> {
@@ -13,13 +16,11 @@ pub struct Deposit<'info> {
     pub user: Signer<'info>,
 
     #[account(
-        mint::decimals = 9,
-        mint::authority = user,
-        mint::token_program = user,
-        extensions::transfer_hook::authority = user,
-        extensions::transfer_hook::program_id = crate::ID,
+        mut,
+        seeds = [b"user", user.key().as_ref()],
+        bump = user_state.bump,
     )]
-    pub mint: InterfaceAccount<'info, Mint>,
+    pub user_state: Account<'info, User>,
 
     #[account(
         init, // init_if_needed
@@ -45,6 +46,15 @@ pub struct Deposit<'info> {
         bump = vault.bump
     )]
     pub vault: Account<'info, Vault>,
+
+    #[account(
+        mint::token_program = token_program,
+    )]
+    pub mint: InterfaceAccount<'info, Mint>,
+
+    #[account(address = anchor_lang::solana_program::sysvar::instructions::ID)]
+    pub instructions: UncheckedAccount<'info>,
+
     pub system_program: Program<'info, System>,
     pub token_program: Interface<'info, TokenInterface>,
     pub associated_token_program: Program<'info, AssociatedToken>,
@@ -52,19 +62,15 @@ pub struct Deposit<'info> {
 
 impl<'info> Deposit<'info> {
     pub fn deposit(&mut self, amount: u64, bumps: &DepositBumps) -> Result<()> {
-        let decimals = self.mint.decimals;
+        match self.user_state.balance.checked_add(amount) {
+            Some(x) => self.user_state.balance = x,
+            None => {} // add error
+        }
+        Ok(())
+    }
 
-        let cpi_accounts = TransferChecked {
-            mint: self.mint.to_account_info(),
-            from: self.user_ata.to_account_info(),
-            to: self.vault_ata.to_account_info(),
-            authority: self.user.to_account_info(),
-        };
-
-        let cpi_program = self.token_program.to_account_info();
-        let cpi_context = CpiContext::new(cpi_program, cpi_accounts);
-        token_interface::transfer_checked(cpi_context, amount, decimals)?;
-
+    pub fn check_transfer_instruction(&self) -> Result<()> {
+        // instruction introspection
         Ok(())
     }
 }

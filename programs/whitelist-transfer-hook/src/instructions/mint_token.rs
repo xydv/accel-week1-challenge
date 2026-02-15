@@ -14,7 +14,7 @@ pub struct TokenFactory<'info> {
     pub user: SystemAccount<'info>,
 
     #[account(
-        init,
+        init_if_needed,
         payer = admin,
         mint::decimals = 9,
         mint::authority = admin,

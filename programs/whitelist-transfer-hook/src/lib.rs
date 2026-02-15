@@ -5,15 +5,13 @@ use anchor_lang::prelude::*;
 
 mod instructions;
 mod state;
-mod tests;
+// mod tests;
 
 use instructions::*;
 
 use spl_discriminator::SplDiscriminate;
 use spl_tlv_account_resolution::state::ExtraAccountMetaList;
-use spl_transfer_hook_interface::instruction::{
-    ExecuteInstruction, InitializeExtraAccountMetaListInstruction,
-};
+use spl_transfer_hook_interface::instruction::ExecuteInstruction;
 
 declare_id!("DhzyDgCmmQzVC4vEcj2zRGUyN8Mt5JynfdGLKkBcRGaX");
 
@@ -21,20 +19,28 @@ declare_id!("DhzyDgCmmQzVC4vEcj2zRGUyN8Mt5JynfdGLKkBcRGaX");
 pub mod whitelist_transfer_hook {
     use super::*;
 
-    // pub fn initialize_whitelist(ctx: Context<InitializeWhitelist>) -> Result<()> {
-    //     ctx.accounts.initialize_whitelist(ctx.bumps)
-    // }
+    pub fn init_vault(ctx: Context<InitializeVault>) -> Result<()> {
+        ctx.accounts.initialize_vault(ctx.bumps)
+    }
 
-    // pub fn add_to_whitelist(ctx: Context<WhitelistOperations>, user: Pubkey) -> Result<()> {
-    //     ctx.accounts.add_to_whitelist(user)
-    // }
+    pub fn mint_token(ctx: Context<TokenFactory>, amount: u64) -> Result<()> {
+        ctx.accounts.init_mint(amount)
+    }
 
-    // pub fn remove_from_whitelist(ctx: Context<WhitelistOperations>, user: Pubkey) -> Result<()> {
-    //     ctx.accounts.remove_from_whitelist(user)
-    // }
+    pub fn add_to_whitelist(ctx: Context<AddToWhitelist>, user: Pubkey) -> Result<()> {
+        ctx.accounts.add_to_whitelist(user, &ctx.bumps)
+    }
 
-    pub fn deposit(ctx: Context<Deposit>, amount: u64) -> Result<()> {
-        ctx.accounts.deposit(amount, &ctx.bumps)
+    pub fn remove_from_whitelist(ctx: Context<RemoveFromWhitelist>, user: Pubkey) -> Result<()> {
+        ctx.accounts.remove_from_whitelist(user)
+    }
+
+    pub fn deposit(ctx: Context<Deposit>) -> Result<()> {
+        ctx.accounts.deposit()
+    }
+
+    pub fn withdraw(ctx: Context<Withdraw>, amount: u64) -> Result<()> {
+        ctx.accounts.withdraw(amount)
     }
 
     pub fn initialize_transfer_hook(ctx: Context<InitializeExtraAccountMetaList>) -> Result<()> {

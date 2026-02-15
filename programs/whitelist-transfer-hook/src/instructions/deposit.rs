@@ -1,4 +1,7 @@
-use anchor_lang::prelude::*;
+use anchor_lang::prelude::{
+    sysvar::instructions::{load_current_index_checked, load_instruction_at_checked},
+    *,
+};
 // use anchor_lang::solana_program::hash::hash;
 use anchor_spl::{
     associated_token::{
@@ -61,16 +64,31 @@ pub struct Deposit<'info> {
 }
 
 impl<'info> Deposit<'info> {
-    pub fn deposit(&mut self, amount: u64, bumps: &DepositBumps) -> Result<()> {
+    pub fn deposit(&mut self, bumps: &DepositBumps) -> Result<()> {
+        let amount = check_transfer_instruction()?;
+
         match self.user_state.balance.checked_add(amount) {
             Some(x) => self.user_state.balance = x,
             None => {} // add error
         }
+
         Ok(())
     }
 
-    pub fn check_transfer_instruction(&self) -> Result<()> {
+    pub fn check_transfer_instruction(&self) -> Result<u64> {
         // instruction introspection
-        Ok(())
+        let current_index =
+            load_current_index_checked(&self.instructions.to_account_info())? as usize;
+        let ix =
+            load_instruction_at_checked(current_index - 1, &self.instructions.to_account_info())?;
+
+        // check above ix is from token22 program and transferchecked
+        require_keys_eq!(ix.program_id, anchor_spl::token_2022::ID);
+        require_eq!(ix.data.split_first().unwrap().0, 12);
+
+        let amount_bytes = &ix.data[1..9];
+        let amount = u64::from_le_bytes(amount_bytes.try_into().unwrap());
+
+        Ok(amount)
     }
 }

@@ -5,7 +5,7 @@ use anchor_lang::prelude::*;
 
 mod instructions;
 mod state;
-// mod tests;
+mod tests;
 
 use instructions::*;
 
@@ -19,7 +19,7 @@ declare_id!("DhzyDgCmmQzVC4vEcj2zRGUyN8Mt5JynfdGLKkBcRGaX");
 pub mod whitelist_transfer_hook {
     use super::*;
 
-    pub fn init_vault(ctx: Context<InitializeVault>) -> Result<()> {
+    pub fn initialize_vault(ctx: Context<InitializeVault>) -> Result<()> {
         ctx.accounts.initialize_vault(ctx.bumps)
     }
 

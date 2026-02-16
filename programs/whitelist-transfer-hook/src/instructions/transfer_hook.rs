@@ -46,7 +46,7 @@ pub struct TransferHook<'info> {
     pub vault: Account<'info, Vault>,
 
     #[account(
-        seeds = [b"user", user.key().as_ref()],
+        seeds = [b"user", owner.key().as_ref()],
         bump = user.bump,
     )]
     pub user: Account<'info, User>,

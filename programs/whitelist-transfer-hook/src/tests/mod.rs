@@ -122,7 +122,10 @@ mod tests {
                 }
                 .to_account_metas(None),
                 data: crate::instruction::MintToken {
-                    amount: 1_000_000_000_000, // 1000 tokens
+                    amount: 1_000_000_000_000,
+                    name: "test token".to_string(),
+                    symbol: "TEST".to_string(),
+                    uri: "".to_string(),
                 }
                 .data(),
             },
@@ -296,6 +299,9 @@ mod tests {
                 .to_account_metas(None),
                 data: crate::instruction::MintToken {
                     amount: 1_000_000_000_000, // 1000 tokens
+                    name: "test token".to_string(),
+                    symbol: "TEST".to_string(),
+                    uri: "".to_string(),
                 }
                 .data(),
             },

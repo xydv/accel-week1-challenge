@@ -23,8 +23,14 @@ pub mod whitelist_transfer_hook {
         ctx.accounts.initialize_vault(ctx.bumps)
     }
 
-    pub fn mint_token(ctx: Context<TokenFactory>, amount: u64) -> Result<()> {
-        ctx.accounts.init_mint(amount)
+    pub fn mint_token(
+        ctx: Context<TokenFactory>,
+        name: String,
+        symbol: String,
+        uri: String,
+        amount: u64,
+    ) -> Result<()> {
+        ctx.accounts.init_mint(name, symbol, uri, amount)
     }
 
     pub fn add_to_whitelist(ctx: Context<AddToWhitelist>, user: Pubkey) -> Result<()> {

@@ -84,7 +84,8 @@ impl<'info> Deposit<'info> {
         require_keys_eq!(ix.program_id, anchor_spl::token_2022::ID);
         require_eq!(ix.data.split_first().unwrap().0, &12);
 
-        // check account info too (transfer is from user to vault)
+        let authority = ix.accounts.get(4).unwrap();
+        require_keys_eq!(authority.pubkey, self.user.key());
 
         let amount_bytes = &ix.data[1..9];
         let amount = u64::from_le_bytes(amount_bytes.try_into().unwrap());

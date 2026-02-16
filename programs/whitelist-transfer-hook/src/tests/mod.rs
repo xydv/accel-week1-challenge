@@ -2,19 +2,9 @@
 mod tests {
 
     use {
-        anchor_lang::{
-            prelude::msg, solana_program::program_pack::Pack, AccountDeserialize, InstructionData,
-            ToAccountMetas,
-        },
-        anchor_spl::{
-            associated_token::{self, spl_associated_token_account},
-            token::spl_token,
-            token_2022,
-        },
+        anchor_lang::{prelude::msg, AccountDeserialize, InstructionData, ToAccountMetas},
+        anchor_spl::{associated_token, token_2022},
         litesvm::LiteSVM,
-        litesvm_token::{
-            spl_token::ID as TOKEN_PROGRAM_ID, CreateAssociatedTokenAccount, CreateMint, MintTo,
-        },
         solana_account::Account,
         solana_address::Address,
         solana_instruction::{AccountMeta, Instruction},
@@ -201,29 +191,12 @@ mod tests {
             )
             .unwrap();
 
-        transfer_ix.accounts.push(AccountMeta {
-            pubkey: meta_list_pda,
-            is_signer: false,
-            is_writable: false,
-        });
-
-        transfer_ix.accounts.push(AccountMeta {
-            pubkey: vault_pda,
-            is_signer: false,
-            is_writable: false,
-        });
-
-        transfer_ix.accounts.push(AccountMeta {
-            pubkey: user_state_pda,
-            is_signer: false,
-            is_writable: false,
-        });
-
-        transfer_ix.accounts.push(AccountMeta {
-            pubkey: PROGRAM_ID,
-            is_signer: false,
-            is_writable: false,
-        });
+        transfer_ix.accounts.extend(vec![
+            AccountMeta::new_readonly(meta_list_pda, false),
+            AccountMeta::new_readonly(vault_pda, false),
+            AccountMeta::new_readonly(user_state_pda, false),
+            AccountMeta::new_readonly(PROGRAM_ID, false),
+        ]);
 
         let deposit_ix = Instruction {
             program_id: PROGRAM_ID,
@@ -270,5 +243,210 @@ mod tests {
             vault_amount, 10_000_000_000,
             "Vault ATA should have received tokens"
         );
+    }
+
+    #[test]
+    fn test_withdraw() {
+        let (mut program, admin) = setup();
+        let admin_pubkey = admin.pubkey();
+
+        let user = Keypair::new();
+
+        program
+            .airdrop(&user.pubkey(), 100 * LAMPORTS_PER_SOL)
+            .unwrap();
+
+        let (vault_pda, _v_bump) = Pubkey::find_program_address(&[b"vault"], &PROGRAM_ID);
+        let (user_state_pda, _u_bump) =
+            Pubkey::find_program_address(&[b"user", user.pubkey().as_ref()], &PROGRAM_ID);
+
+        let mint_keypair = Keypair::new();
+        let mint_pubkey = mint_keypair.pubkey();
+
+        let user_ata = associated_token::get_associated_token_address_with_program_id(
+            &user.pubkey(),
+            &mint_pubkey,
+            &anchor_spl::token_2022::ID,
+        );
+
+        let vault_ata = associated_token::get_associated_token_address_with_program_id(
+            &vault_pda,
+            &mint_pubkey,
+            &anchor_spl::token_2022::ID,
+        );
+
+        let (meta_list_pda, _bump) = Pubkey::find_program_address(
+            &[b"extra-account-metas", mint_pubkey.as_ref()],
+            &PROGRAM_ID,
+        );
+
+        let setup_ixs = vec![
+            // Init Mint and Send to user
+            Instruction {
+                program_id: PROGRAM_ID,
+                accounts: crate::accounts::TokenFactory {
+                    admin: admin_pubkey,
+                    user: user.pubkey(),
+                    mint: mint_keypair.pubkey(),
+                    user_ata: user_ata,
+                    system_program: solana_sdk_ids::system_program::ID,
+                    token_program: anchor_spl::token_2022::ID,
+                    associated_token_program: associated_token::ID,
+                }
+                .to_account_metas(None),
+                data: crate::instruction::MintToken {
+                    amount: 1_000_000_000_000, // 1000 tokens
+                }
+                .data(),
+            },
+            // Init extra account meta list
+            Instruction {
+                program_id: PROGRAM_ID,
+                accounts: crate::accounts::InitializeExtraAccountMetaList {
+                    payer: admin_pubkey,
+                    extra_account_meta_list: meta_list_pda,
+                    mint: mint_pubkey,
+                    system_program: solana_sdk_ids::system_program::ID,
+                }
+                .to_account_metas(None),
+                data: crate::instruction::InitializeTransferHook {}.data(),
+            },
+            // Initialize Vault
+            Instruction {
+                program_id: PROGRAM_ID,
+                accounts: crate::accounts::InitializeVault {
+                    admin: admin_pubkey,
+                    vault: vault_pda,
+                    mint: mint_pubkey,
+                    vault_token_account: vault_ata,
+                    associated_token_program: associated_token::ID,
+                    token_program: anchor_spl::token_2022::ID,
+                    system_program: SYSTEM_PROGRAM_ID,
+                }
+                .to_account_metas(None),
+                data: crate::instruction::InitializeVault {}.data(),
+            },
+            // Add User to Whitelist
+            Instruction {
+                program_id: PROGRAM_ID,
+                accounts: crate::accounts::AddToWhitelist {
+                    admin: admin_pubkey,
+                    vault: vault_pda,
+                    user: user_state_pda,
+                    system_program: SYSTEM_PROGRAM_ID,
+                }
+                .to_account_metas(None),
+                data: crate::instruction::AddToWhitelist {
+                    user: user.pubkey(),
+                }
+                .data(),
+            },
+        ];
+
+        program
+            .send_transaction(Transaction::new(
+                &[&admin, &mint_keypair],
+                Message::new(&setup_ixs, Some(&admin_pubkey)),
+                program.latest_blockhash(),
+            ))
+            .unwrap();
+
+        let mut transfer_ix =
+            anchor_spl::token_2022::spl_token_2022::instruction::transfer_checked(
+                &anchor_spl::token_2022::ID,
+                &user_ata,
+                &mint_pubkey,
+                &vault_ata,
+                &user.pubkey(),
+                &[&user.pubkey()],
+                10_000_000_000, // 10 tokens
+                9,
+            )
+            .unwrap();
+
+        transfer_ix.accounts.extend(vec![
+            AccountMeta::new_readonly(meta_list_pda, false),
+            AccountMeta::new_readonly(vault_pda, false),
+            AccountMeta::new_readonly(user_state_pda, false),
+            AccountMeta::new_readonly(PROGRAM_ID, false),
+        ]);
+
+        let deposit_ix = Instruction {
+            program_id: PROGRAM_ID,
+            accounts: crate::accounts::Deposit {
+                user: user.pubkey(),
+                user_state: user_state_pda,
+                user_ata,
+                vault_ata,
+                vault: vault_pda,
+                mint: mint_pubkey,
+                instructions: anchor_lang::solana_program::sysvar::instructions::ID,
+                system_program: SYSTEM_PROGRAM_ID,
+                token_program: anchor_spl::token_2022::ID,
+                associated_token_program: associated_token::ID,
+            }
+            .to_account_metas(None),
+            data: crate::instruction::Deposit {}.data(),
+        };
+
+        let message = Message::new(&[transfer_ix, deposit_ix], Some(&user.pubkey()));
+        let tx = Transaction::new(&[&user], message, program.latest_blockhash());
+
+        // send deposit transaction
+        program
+            .send_transaction(tx)
+            .expect("Introspection check failed");
+
+        let withdraw_ix = Instruction {
+            program_id: PROGRAM_ID,
+            accounts: crate::accounts::Withdraw {
+                user: user.pubkey(),
+                vault: vault_pda,
+                user_account: user_state_pda,
+                vault_token_account: vault_ata,
+                token_program: token_2022::ID,
+                instructions: anchor_lang::solana_program::sysvar::instructions::ID,
+            }
+            .to_account_metas(None),
+            data: crate::instruction::Withdraw {
+                amount: 10_000_000_000,
+            }
+            .data(),
+        };
+
+        let mut transfer_out_ix = spl_token_2022::instruction::transfer_checked(
+            &token_2022::ID,
+            &vault_ata,
+            &mint_pubkey,
+            &user_ata,
+            &user.pubkey(),
+            &[],
+            10_000_000_000,
+            9,
+        )
+        .unwrap();
+
+        transfer_out_ix.accounts.extend(vec![
+            AccountMeta::new_readonly(meta_list_pda, false),
+            AccountMeta::new_readonly(vault_pda, false),
+            AccountMeta::new_readonly(user_state_pda, false),
+            AccountMeta::new_readonly(PROGRAM_ID, false),
+        ]);
+
+        let withdraw_msg = Message::new(&[withdraw_ix, transfer_out_ix], Some(&user.pubkey()));
+
+        program
+            .send_transaction(Transaction::new(
+                &[&user],
+                withdraw_msg,
+                program.latest_blockhash(),
+            ))
+            .expect("Failed to withdraw");
+
+        let user_state_acc = program.get_account(&user_state_pda).unwrap();
+        let user_state =
+            crate::state::User::try_deserialize(&mut user_state_acc.data.as_ref()).unwrap();
+
+        assert_eq!(user_state.balance, 0);
     }
 }

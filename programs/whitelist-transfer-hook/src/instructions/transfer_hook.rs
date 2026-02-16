@@ -18,14 +18,15 @@ use crate::state::{User, Vault};
 pub struct TransferHook<'info> {
     #[account(
         token::mint = mint,
-        token::authority = owner,
+        // we are using delegation, so this will fail withdraw
+        // token::authority = owner,
     )]
     pub source_token: InterfaceAccount<'info, TokenAccount>,
 
     pub mint: InterfaceAccount<'info, Mint>,
 
     #[account(
-        token::mint = mint, // ??
+        token::mint = mint,
     )]
     pub destination_token: InterfaceAccount<'info, TokenAccount>,
 
